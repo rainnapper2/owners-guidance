@@ -4,7 +4,7 @@ import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-# In-memory database for demo purposes
+# In-memory database for demo purposes (Updated for PR testing)
 ITEMS = {
     1: {"id": 1, "name": "Item One", "status": "active"},
     2: {"id": 2, "name": "Item Two", "status": "pending"},
