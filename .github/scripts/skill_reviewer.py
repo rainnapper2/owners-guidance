@@ -63,23 +63,17 @@ def resolve_skills_for_file(filepath: str | Path, repo_root: Path) -> list[Path]
 def get_changed_files_from_git(base_ref: str = "main", repo_root: Path | None = None) -> list[str]:
     """Get list of changed files in git relative to base ref."""
     cwd = repo_root or Path.cwd()
-    cmd = ["git", "diff", "--name-only", f"{base_ref}...HEAD"]
-    try:
-        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=True)
-        files = [f.strip() for f in res.stdout.splitlines() if f.strip()]
-        if files:
-            return files
-    except subprocess.CalledProcessError:
-        pass
-
-    # Fallback to git diff HEAD or unstaged/staged files
-    try:
-        res = subprocess.run(["git", "diff", "--name-only", "HEAD"], cwd=cwd, capture_output=True, text=True, check=True)
-        files = [f.strip() for f in res.stdout.splitlines() if f.strip()]
-        if files:
-            return files
-    except subprocess.CalledProcessError:
-        pass
+    # Try various ref specs to handle both local and CI PR checkouts
+    ref_specs = [f"origin/{base_ref}...HEAD", f"{base_ref}...HEAD", "HEAD~1...HEAD", "HEAD"]
+    for ref_spec in ref_specs:
+        cmd = ["git", "diff", "--name-only", ref_spec]
+        try:
+            res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=True)
+            files = [f.strip() for f in res.stdout.splitlines() if f.strip()]
+            if files:
+                return files
+        except subprocess.CalledProcessError:
+            pass
 
     return []
 
