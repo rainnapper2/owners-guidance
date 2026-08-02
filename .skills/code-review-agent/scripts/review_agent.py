@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Run Code Review Agent with Deterministic Directory Skill Unioning.
+"""Directory-Based Code Review Skills Generator.
 
-1. Finds touched files in a commit or branch.
-2. Resolves parent directory skills for each file and unions all unique skills.
-3. Builds a deterministic review context payload file containing skills + git diff.
-4. Prepares agent instructions for executing an AI Code Review.
+Self-contained script embedded in the code-review-agent skill.
+1. Inspects modified files via git (staged, commit, or branch diff).
+2. Traverses parent directory tree to discover all inherited SKILL.md files.
+3. Merges and unions all active directory skills without duplication.
+4. Generates a deterministic markdown review context payload file (.review_context.tmp.md).
 """
 
 import argparse
@@ -73,7 +74,7 @@ def get_touched_files(
         diff_cmd = ["git", "diff", f"{base_ref}...HEAD"]
         name_cmd = ["git", "diff", "--name-only", f"{base_ref}...HEAD"]
     else:
-        # Check staged changes first
+        # 1. Try staged changes first
         try:
             res = subprocess.run(["git", "diff", "--name-only", "--cached"], cwd=repo_root, capture_output=True, text=True, check=True)
             files = [f.strip() for f in res.stdout.splitlines() if f.strip()]
@@ -83,8 +84,18 @@ def get_touched_files(
         except subprocess.CalledProcessError:
             pass
 
-        # Fallback order: origin/main...HEAD, main...HEAD, HEAD~1...HEAD, HEAD
-        for spec in ["origin/main...HEAD", "main...HEAD", "HEAD~1...HEAD", "HEAD"]:
+        # 2. Try git diff HEAD
+        try:
+            res = subprocess.run(["git", "diff", "--name-only", "HEAD"], cwd=repo_root, capture_output=True, text=True, check=True)
+            files = [f.strip() for f in res.stdout.splitlines() if f.strip()]
+            if files:
+                diff_res = subprocess.run(["git", "diff", "HEAD"], cwd=repo_root, capture_output=True, text=True, check=True)
+                return files, diff_res.stdout
+        except subprocess.CalledProcessError:
+            pass
+
+        # 3. Fallback to branch comparisons
+        for spec in ["origin/main...HEAD", "main...HEAD", "HEAD~1...HEAD"]:
             try:
                 res = subprocess.run(["git", "diff", "--name-only", spec], cwd=repo_root, capture_output=True, text=True, check=True)
                 files = [f.strip() for f in res.stdout.splitlines() if f.strip()]
@@ -141,7 +152,11 @@ def build_review_context(
             lines.append("- _No specific directory skills found._")
         else:
             for s in skills:
-                lines.append(f"- Inherits Skill: `{s.relative_to(repo_root)}`")
+                try:
+                    rel_s = s.relative_to(repo_root)
+                except ValueError:
+                    rel_s = s
+                lines.append(f"- Inherits Skill: `{rel_s}`")
         lines.append("")
 
     lines.extend([
@@ -155,7 +170,11 @@ def build_review_context(
         lines.append("_No skill files found across touched directories._\n")
     else:
         for s in all_skills_ordered:
-            lines.append(f"### Skill File: `{s.relative_to(repo_root)}`")
+            try:
+                rel_s = s.relative_to(repo_root)
+            except ValueError:
+                rel_s = s
+            lines.append(f"### Skill File: `{rel_s}`")
             try:
                 lines.append(s.read_text(encoding="utf-8"))
             except Exception as e:
@@ -187,12 +206,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Prepare deterministic context & run Code Review Agent")
     parser.add_argument("--base", help="Git base branch ref (e.g. main)")
     parser.add_argument("--commit", help="Specific git commit ref (e.g. HEAD or commit hash)")
+    parser.add_argument("--staged", action="store_true", help="Compare staged git changes")
     parser.add_argument("--output", default=".review_context.tmp.md", help="Output path for context payload")
     parser.add_argument("--root", default=".", help="Repository root path")
     args = parser.parse_args()
 
     repo_root = Path(args.root).resolve()
-    touched_files, diff_text = get_touched_files(repo_root, base_ref=args.base, commit_ref=args.commit)
+    touched_files, diff_text = get_touched_files(
+        repo_root,
+        base_ref=args.base,
+        commit_ref=args.commit,
+        staged=args.staged
+    )
 
     if not touched_files:
         print("No touched files found in git comparison.")
@@ -206,7 +231,12 @@ def main() -> int:
 
     print(f"✅ Generated deterministic review context for {len(touched_files)} files:")
     for f in touched_files:
-        skills = [str(s.relative_to(repo_root)) for s in file_to_skills.get(f, [])]
+        skills = []
+        for s in file_to_skills.get(f, []):
+            try:
+                skills.append(str(s.relative_to(repo_root)))
+            except ValueError:
+                skills.append(str(s))
         print(f"   • {f} -> [{', '.join(skills)}]")
     print(f"\n✅ Total Unioned Skill Files: {len(union_skills)}")
     print(f"✅ Context Payload File Written To: {out_path.relative_to(repo_root)}")

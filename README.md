@@ -1,76 +1,94 @@
-# Monorepo: Python API & CLI with Directory-Based Code Review Skills
+# Code Review Agent Skill & Monorepo Demo
 
-A lightweight Python monorepo showcasing **Directory-Based Code Review Skills** in GitHub Actions.
+A reusable AI Agent Skill (`code-review-agent`) that automatically resolves, inherits, and unions parent directory skills (`SKILL.md`) across modified files in Git, generating a deterministic context payload for AI code review.
+
+Includes a demo monorepo codebase in `demo/`.
+
+---
 
 ## 📁 Repository Structure
 
 ```
 .
+├── skills/
+│   └── code-review-agent/           # Reusable Code Review Agent Skill
+│       ├── SKILL.md                 # Agent instructions for "run code review agent"
+│       └── scripts/
+│           └── review_agent.py      # Self-contained Python script to build review payload
+├── .skills/                         # Symlinked/Mirrored skill folder for auto-discovery
+│   └── code-review-agent/
+├── demo/                            # Sample Monorepo Codebase
+│   ├── python/
+│   │   ├── SKILL.md                 # General Python guidelines & standards
+│   │   ├── api/
+│   │   │   ├── SKILL.md             # API specific standards (REST, status codes, JSON errors)
+│   │   │   ├── server.py            # REST API HTTP server
+│   │   │   └── test_api.py          # API unit tests
+│   │   └── cli/
+│   │       ├── SKILL.md             # CLI specific standards (argparse, stdio streams)
+│   │       ├── client.py            # CLI client tool
+│   │       └── test_cli.py          # CLI unit tests
+│   └── tests/
+│       └── test_skill_reviewer.py   # Unit tests for the skill resolution engine
 ├── .github/
-│   ├── scripts/
-│   │   ├── ai_reviewer.py         # AI Code Review Agent logic
-│   │   └── skill_reviewer.py      # Resolves parent directory skills and unions them for PR review
 │   └── workflows/
-│       ├── ci.yml                  # Continuous Integration test runner
-│       └── code-review.yml         # PR Code Review workflow using directory skills
-├── scripts/
-│   └── run_code_review_agent.py   # Harness-agnostic local review payload generator
-├── python/
-│   ├── SKILL.md                    # Core Python standards (Type hints, PEP8, testing)
-│   ├── api/
-│   │   ├── SKILL.md                # API specific standards (REST, status codes, JSON format)
-│   │   ├── server.py               # REST API HTTP server (Python standard library)
-│   │   └── test_api.py             # Integration & unit tests for API
-│   └── cli/
-│       ├── SKILL.md                # CLI specific standards (argparse, stdio streams, exit codes)
-│       ├── client.py               # CLI client tool
-│       └── test_cli.py             # Integration & unit tests for CLI
-└── tests/
-    └── test_skill_reviewer.py      # Unit tests for directory skill inheritance & unioning engine
+│       ├── ci.yml                   # CI pipeline runner
+│       └── code-review.yml          # GitHub Actions workflow for PR code review
+└── README.md
 ```
 
 ---
 
-## 🎯 How Directory-Based Code Review Skills Work
+## 💡 How to Use the Skill
 
-When a Pull Request is opened or code is modified, the review engine (`scripts/run_code_review_agent.py` / `skill_reviewer.py`) evaluates all changed files:
+Include this repository or copy `skills/code-review-agent` into your project. An AI assistant or developer can trigger code review by simply asking:
 
-1. **Hierarchy Resolution**: For every touched file, it walks up the directory path from the file's directory to the repository root, gathering all applicable `SKILL.md` files along the path.
-2. **Multi-Directory Union**: If a change touches files across multiple directories (e.g. `python/api/server.py` and `python/cli/client.py`), the reviewer engine unions the skills from all affected directories and parent paths without duplication.
-3. **Deterministic Context Payload**: Generates a self-contained `.review_context.tmp.md` file containing the union of skills, file mappings, git diff, and review instructions.
-4. **Harness-Agnostic Agent Execution**: The payload file is fed into any AI Code Reviewer Agent (Antigravity subagents, LLM API, Claude Code, Cursor, Aider, GitHub Actions) to produce a strict compliance review.
+> **"run code review agent"** or **"review my code against directory skills"**
 
-### Skill Resolution Matrix
+The agent will execute:
 
-| Modified File(s) | Applicable Skill Files (Union of Parents) |
-|---|---|
-| `python/api/server.py` | `python/SKILL.md` + `python/api/SKILL.md` |
-| `python/cli/client.py` | `python/SKILL.md` + `python/cli/SKILL.md` |
-| `python/api/server.py` **AND** `python/cli/client.py` | `python/SKILL.md` + `python/api/SKILL.md` + `python/cli/SKILL.md` |
-
----
-
-## 🤖 Local Agent Execution & Example Review Output
-
-### 1. Stage a change & generate review context payload
 ```bash
-# Stage changes
-git add python/api/server.py
-
-# Generate deterministic review payload
-python3 scripts/run_code_review_agent.py
+python3 skills/code-review-agent/scripts/review_agent.py
 ```
 
-**Terminal Output:**
-```text
-✅ Generated deterministic review context for 1 files:
-   • python/api/server.py -> [python/SKILL.md, python/api/SKILL.md]
+### Script Execution Options
+- **Staged Git Changes**: `python3 skills/code-review-agent/scripts/review_agent.py --staged`
+- **Specific Commit**: `python3 skills/code-review-agent/scripts/review_agent.py --commit HEAD`
+- **Branch Diff vs Main**: `python3 skills/code-review-agent/scripts/review_agent.py --base main`
 
-✅ Total Unioned Skill Files: 2
-✅ Context Payload File Written To: .review_context.tmp.md
+---
+
+## 🎯 Skill Resolution Matrix (Demo Codebase)
+
+When files in `demo/` are modified, the skill engine resolves and unions all parent directory skills from the root down to each file's directory:
+
+| Modified File(s) in `demo/` | Union of Inherited Skill Guidelines |
+|---|---|
+| `demo/python/api/server.py` | `demo/python/SKILL.md` + `demo/python/api/SKILL.md` |
+| `demo/python/cli/client.py` | `demo/python/SKILL.md` + `demo/python/cli/SKILL.md` |
+| `demo/python/api/server.py` **AND** `demo/python/cli/client.py` | `demo/python/SKILL.md` + `demo/python/api/SKILL.md` + `demo/python/cli/SKILL.md` |
+
+---
+
+## 🚀 Quickstart & Running Tests
+
+### Running Demo Monorepo Unit Tests
+```bash
+python3 -m unittest discover -s demo -p "test_*.py"
 ```
 
-### 2. Example AI Code Reviewer Report Output
+### Running Local Skill Review Payload Generator
+```bash
+# Stage any change in demo/
+git add demo/python/api/server.py
+
+# Run the review agent script
+python3 skills/code-review-agent/scripts/review_agent.py
+```
+
+---
+
+## 🤖 Example AI Code Review Output
 
 > # Code Review Report
 > **Overall Verdict**: **`REVISED_NEEDED`**
@@ -81,64 +99,7 @@ python3 scripts/run_code_review_agent.py
 > 
 > | File | Line(s) | Severity | Skill Source | Description |
 > | --- | --- | --- | --- | --- |
-> | `python/api/server.py` | 16 | **High** | `python/SKILL.md` | Function signature `def format_item_response(item):` missing explicit type annotations for parameter `item` and return type. |
-> | `python/api/server.py` | 15–16 | **Medium** | `python/SKILL.md` | `format_item_response` uses an inline comment instead of a formal function docstring explaining purpose and return value. |
-> | `python/api/test_api.py` | N/A | **High** | `python/SKILL.md` | Missing unit tests for the newly introduced `format_item_response` function. |
-> | `python/api/server.py` | 17 | **Low** | Code Quality | Residual debug `print(f"DEBUG...")` statement pollutes standard output. |
-> 
-> ---
-> 
-> ## 🛠️ Suggested Code Changes
-> 
-> ```diff
-> -# Helper to format item responses for API consumers
-> -def format_item_response(item):
-> -    print(f"DEBUG: Formatting response for item {item}")
-> -    return {"data": item, "version": "v1"}
-> +def format_item_response(item: dict) -> dict:
-> +    """Format item dictionary response payload for API consumers.
-> +
-> +    Args:
-> +        item: Dictionary containing item attributes.
-> +
-> +    Returns:
-> +        Formatted dictionary with payload data and version metadata.
-> +    """
-> +    return {"data": item, "version": "v1"}
-> ```
-
----
-
-## 🚀 Quickstart & Testing
-
-### Running API Server & CLI Client
-```bash
-# Start API server
-python3 python/api/server.py
-
-# In another terminal, run CLI client commands
-python3 python/cli/client.py health
-python3 python/cli/client.py list
-python3 python/cli/client.py create --name "Demo Item"
-python3 python/cli/client.py get --id 1
-```
-
-### Running All Unit Tests (Zero External Dependencies)
-```bash
-python3 -m unittest discover -s python -p "test_*.py"
-python3 -m unittest discover -s tests -p "test_*.py"
-```
-
----
-
-## 🐙 Publishing to GitHub with `gh` CLI
-
-To connect this local repo to a new GitHub repository:
-
-```bash
-# 1. Authenticate gh CLI (if needed)
-gh auth login
-
-# 2. Create remote repository and push
-gh repo create owners-guidance --public --source=. --remote=origin --push
-```
+> | `demo/python/api/server.py` | 16 | **High** | `demo/python/SKILL.md` | Function signature `def format_item_response(item):` missing explicit type annotations for parameter `item` and return type. |
+> | `demo/python/api/server.py` | 15–16 | **Medium** | `demo/python/SKILL.md` | `format_item_response` uses an inline comment instead of a formal function docstring. |
+> | `demo/python/api/test_api.py` | N/A | **High** | `demo/python/SKILL.md` | Missing unit tests for newly introduced `format_item_response` function. |
+> | `demo/python/api/server.py` | 17 | **Low** | Code Quality | Residual debug `print(f"DEBUG...")` statement. |

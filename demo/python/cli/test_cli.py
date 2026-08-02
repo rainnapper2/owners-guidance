@@ -6,8 +6,12 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from python.api.server import run_server
-from python.cli.client import APIClient, main
+try:
+    from demo.python.api.server import run_server
+    from demo.python.cli.client import APIClient, main
+except ImportError:
+    from python.api.server import run_server
+    from python.cli.client import APIClient, main
 
 
 class TestCLIClient(unittest.TestCase):

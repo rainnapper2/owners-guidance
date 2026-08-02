@@ -6,7 +6,10 @@ import unittest
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
 
-from python.api.server import run_server
+try:
+    from demo.python.api.server import run_server
+except ImportError:
+    from python.api.server import run_server
 
 
 class TestAPIServer(unittest.TestCase):

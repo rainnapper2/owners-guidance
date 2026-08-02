@@ -6,7 +6,7 @@ on:
 
 jobs:
   code-review-skills:
-    name: Resolve & Union Directory Skills
+    name: Resolve & Union Directory Skills AI Review
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,21 +23,23 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Extract Directory Skills & Generate Guidance
+      - name: Step 1 - Extract Directory Skills & Union Context Payload
         run: |
-          python .github/scripts/skill_reviewer.py \
+          python skills/code-review-agent/scripts/review_agent.py \
+            --base ${{ github.base_ref || 'main' }} \
+            --output .review_context.tmp.md
+
+      - name: Step 2 - Execute AI Code Reviewer Agent
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .github/scripts/ai_reviewer.py \
+            --guidance .review_context.tmp.md \
             --base-sha ${{ github.event.pull_request.base.sha }} \
             --head-sha ${{ github.event.pull_request.head.sha }} \
             --base ${{ github.base_ref || 'main' }} \
-            --output review_guidance.md
+            --pr ${{ github.event.pull_request.number }}
 
-      - name: Publish Skills Summary to Step Summary
+      - name: Step 3 - Publish Skills Summary to Action Job Summary
         run: |
-          cat review_guidance.md >> $GITHUB_STEP_SUMMARY
-
-      - name: Comment Guidance on PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          gh pr comment $PR_NUMBER --body-file review_guidance.md || echo "Could not post PR comment"
+          cat .review_context.tmp.md >> $GITHUB_STEP_SUMMARY

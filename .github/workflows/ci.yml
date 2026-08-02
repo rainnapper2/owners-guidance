@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Run Unit Tests
+    name: Run Demo Monorepo & Skill Unit Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -20,10 +20,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Run API & CLI Tests
+      - name: Run Demo Unit Tests
         run: |
-          python -m unittest discover -s python -p "test_*.py"
-
-      - name: Run Skill Engine Tests
-        run: |
-          python -m unittest discover -s tests -p "test_*.py"
+          python -m unittest discover -s demo -p "test_*.py"

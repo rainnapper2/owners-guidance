@@ -6,15 +6,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# Add .github/scripts to sys.path for importing skill_reviewer
-script_dir = Path(__file__).resolve().parent.parent / ".github" / "scripts"
+# Add skills/code-review-agent/scripts to sys.path for importing review_agent
+script_dir = Path(__file__).resolve().parent.parent.parent / "skills" / "code-review-agent" / "scripts"
 sys.path.insert(0, str(script_dir))
 
-from skill_reviewer import (
+from review_agent import (
     find_skill_files_in_dir,
     resolve_skills_for_file,
-    build_review_summary,
-    generate_markdown_report,
+    build_review_context,
 )
 
 
@@ -72,9 +71,9 @@ class TestSkillReviewer(unittest.TestCase):
         # Should include python/SKILL.md AND python/cli/SKILL.md
         self.assertEqual(skills, [self.py_skill, self.cli_skill])
 
-    def test_build_review_summary_union(self) -> None:
+    def test_build_review_context_union(self) -> None:
         changed_files = ["python/api/server.py", "python/cli/client.py"]
-        file_to_skills, union_skills = build_review_summary(changed_files, self.root)
+        context, file_to_skills, union_skills = build_review_context(changed_files, "mock diff", self.root)
 
         # file_to_skills mapping
         self.assertEqual(file_to_skills["python/api/server.py"], [self.py_skill, self.api_skill])
@@ -84,16 +83,10 @@ class TestSkillReviewer(unittest.TestCase):
         self.assertEqual(len(union_skills), 3)
         self.assertEqual(union_skills, [self.py_skill, self.api_skill, self.cli_skill])
 
-    def test_generate_markdown_report(self) -> None:
-        changed_files = ["python/api/server.py", "python/cli/client.py"]
-        report = generate_markdown_report(changed_files, self.root)
-
-        self.assertIn("Code Review Guidance & Skill Context", report)
-        self.assertIn("python/api/server.py", report)
-        self.assertIn("python/cli/client.py", report)
-        self.assertIn("General Python guidelines", report)
-        self.assertIn("API specific guidelines", report)
-        self.assertIn("CLI specific guidelines", report)
+        self.assertIn("DETERMINISTIC CODE REVIEW CONTEXT PAYLOAD", context)
+        self.assertIn("General Python guidelines", context)
+        self.assertIn("API specific guidelines", context)
+        self.assertIn("CLI specific guidelines", context)
 
 
 if __name__ == "__main__":
