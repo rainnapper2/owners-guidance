@@ -8,7 +8,7 @@ from urllib.error import HTTPError, URLError
 
 
 class APIClient:
-    """API client helper for communicating with the server."""
+    """API client helper for communicating with the server (Updated for PR testing)."""
 
     def __init__(self, base_url: str = "http://127.0.0.1:8080") -> None:
         self.base_url = base_url.rstrip("/")
