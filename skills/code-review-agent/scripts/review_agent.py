@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Directory-Based Code Review Skills Generator.
+"""Directory-Based Code Review Generator.
 
 Self-contained script embedded in the code-review-agent skill.
 1. Inspects modified files via git (staged, commit, or branch diff).
-2. Traverses parent directory tree to discover all inherited SKILL.md files.
-3. Merges and unions all active directory skills without duplication.
+2. Traverses parent directory tree to discover all inherited CODE_REVIEW.md files.
+3. Merges and unions all active directory CODE_REVIEW.md files without duplication.
 4. Generates a deterministic markdown review context payload file (.review_context.tmp.md).
 """
 
@@ -14,28 +14,28 @@ import subprocess
 import sys
 from pathlib import Path
 
-SKILL_FILENAMES = ["SKILL.md", ".skill.md", "SKILL.txt", ".skills.md"]
+REVIEW_FILENAMES = ["CODE_REVIEW.md", "code_review.md", ".code_review.md"]
 
 
-def find_skill_files_in_dir(directory: Path) -> list[Path]:
-    """Find skill files in a given directory."""
+def find_review_files_in_dir(directory: Path) -> list[Path]:
+    """Find CODE_REVIEW.md files in a given directory."""
     found = []
-    for filename in SKILL_FILENAMES:
-        skill_path = directory / filename
-        if skill_path.is_file():
-            found.append(skill_path)
-
-    skills_dir = directory / ".skills"
-    if skills_dir.is_dir():
-        for skill_file in sorted(skills_dir.glob("*.md")):
-            if skill_file.is_file():
-                found.append(skill_file)
-
+    seen_canonical = set()
+    for filename in REVIEW_FILENAMES:
+        review_path = directory / filename
+        if review_path.is_file():
+            try:
+                canonical = str(review_path.resolve()).lower()
+            except Exception:
+                canonical = str(review_path).lower()
+            if canonical not in seen_canonical:
+                seen_canonical.add(canonical)
+                found.append(review_path)
     return found
 
 
-def resolve_skills_for_file(filepath: Path, repo_root: Path) -> list[Path]:
-    """Resolve inherited skill files for a given file path from repo root down."""
+def resolve_reviews_for_file(filepath: Path, repo_root: Path) -> list[Path]:
+    """Resolve inherited CODE_REVIEW.md files for a given file path from repo root down."""
     try:
         rel_path = filepath.relative_to(repo_root) if filepath.is_absolute() else filepath
     except ValueError:
@@ -49,12 +49,12 @@ def resolve_skills_for_file(filepath: Path, repo_root: Path) -> list[Path]:
         current = current / part
         ancestor_dirs.append(current)
 
-    skill_files = []
+    review_files = []
     for ancestor in ancestor_dirs:
         if ancestor.exists():
-            skill_files.extend(find_skill_files_in_dir(ancestor))
+            review_files.extend(find_review_files_in_dir(ancestor))
 
-    return skill_files
+    return review_files
 
 
 def get_touched_files(
@@ -122,63 +122,64 @@ def build_review_context(
     repo_root: Path
 ) -> tuple[str, dict[str, list[Path]], list[Path]]:
     """Build deterministic code review context string."""
-    file_to_skills = {}
-    all_skills_set = set()
-    all_skills_ordered = []
+    file_to_reviews = {}
+    all_reviews_set = set()
+    all_reviews_ordered = []
 
     for file_str in touched_files:
         full_path = repo_root / file_str
-        skills = resolve_skills_for_file(full_path, repo_root)
-        file_to_skills[file_str] = skills
-        for skill in skills:
-            if skill not in all_skills_set:
-                all_skills_set.add(skill)
-                all_skills_ordered.append(skill)
+        reviews = resolve_reviews_for_file(full_path, repo_root)
+        file_to_reviews[file_str] = reviews
+        for review in reviews:
+            canonical = str(review.resolve()).lower()
+            if canonical not in all_reviews_set:
+                all_reviews_set.add(canonical)
+                all_reviews_ordered.append(review)
 
     lines = [
         "# 🤖 DETERMINISTIC CODE REVIEW CONTEXT PAYLOAD",
         "",
         "You are an AI Code Reviewer Agent. Your mission is to strictly review the code changes below ",
-        "against the UNION of directory skills collected from every touched file and its parent directories.",
+        "against the UNION of CODE_REVIEW.md guidelines collected from every touched file and its parent directories.",
         "",
-        "## 📌 TOUCHED FILES & INHERITED SKILL MAPPINGS",
+        "## 📌 TOUCHED FILES & INHERITED CODE_REVIEW.md MAPPINGS",
         "",
     ]
 
     for file_str in sorted(touched_files):
-        skills = file_to_skills.get(file_str, [])
+        reviews = file_to_reviews.get(file_str, [])
         lines.append(f"### File: `{file_str}`")
-        if not skills:
-            lines.append("- _No specific directory skills found._")
+        if not reviews:
+            lines.append("- _No specific CODE_REVIEW.md files found._")
         else:
-            for s in skills:
+            for r in reviews:
                 try:
-                    rel_s = s.relative_to(repo_root)
+                    rel_r = r.relative_to(repo_root)
                 except ValueError:
-                    rel_s = s
-                lines.append(f"- Inherits Skill: `{rel_s}`")
+                    rel_r = r
+                lines.append(f"- Inherits Code Review Guidelines: `{rel_r}`")
         lines.append("")
 
     lines.extend([
         "---",
         "",
-        "## 🛠️ UNION OF DIRECTORY SKILLS (REVIEW RULES)",
+        "## 🛠️ UNION OF CODE_REVIEW.md GUIDELINES",
         "",
     ])
 
-    if not all_skills_ordered:
-        lines.append("_No skill files found across touched directories._\n")
+    if not all_reviews_ordered:
+        lines.append("_No CODE_REVIEW.md files found across touched directories._\n")
     else:
-        for s in all_skills_ordered:
+        for r in all_reviews_ordered:
             try:
-                rel_s = s.relative_to(repo_root)
+                rel_r = r.relative_to(repo_root)
             except ValueError:
-                rel_s = s
-            lines.append(f"### Skill File: `{rel_s}`")
+                rel_r = r
+            lines.append(f"### Guidelines File: `{rel_r}`")
             try:
-                lines.append(s.read_text(encoding="utf-8"))
+                lines.append(r.read_text(encoding="utf-8"))
             except Exception as e:
-                lines.append(f"_Error reading {s}: {e}_")
+                lines.append(f"_Error reading {r}: {e}_")
             lines.append("")
 
     lines.extend([
@@ -193,13 +194,13 @@ def build_review_context(
         "---",
         "",
         "## 📋 AGENT REVIEW TASK INSTRUCTIONS",
-        "1. Evaluate every modified file against all of its inherited directory skills.",
-        "2. Identify specific lines or patterns that violate any of the active skill rules.",
-        "3. Provide constructive findings categorized by file, line number, severity, and skill source.",
+        "1. Evaluate every modified file against all of its inherited CODE_REVIEW.md guidelines.",
+        "2. Identify specific lines or patterns that violate any of the active review rules.",
+        "3. Provide constructive findings categorized by file, line number, severity, and rule source.",
         "4. Conclude with an overall assessment (APPROVED or REVISED_NEEDED).",
     ])
 
-    return "\n".join(lines), file_to_skills, all_skills_ordered
+    return "\n".join(lines), file_to_reviews, all_reviews_ordered
 
 
 def main() -> int:
@@ -223,7 +224,7 @@ def main() -> int:
         print("No touched files found in git comparison.")
         return 0
 
-    context_payload, file_to_skills, union_skills = build_review_context(touched_files, diff_text, repo_root)
+    context_payload, file_to_reviews, union_reviews = build_review_context(touched_files, diff_text, repo_root)
 
     out_path = repo_root / args.output
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -231,14 +232,14 @@ def main() -> int:
 
     print(f"✅ Generated deterministic review context for {len(touched_files)} files:")
     for f in touched_files:
-        skills = []
-        for s in file_to_skills.get(f, []):
+        reviews = []
+        for r in file_to_reviews.get(f, []):
             try:
-                skills.append(str(s.relative_to(repo_root)))
+                reviews.append(str(r.relative_to(repo_root)))
             except ValueError:
-                skills.append(str(s))
-        print(f"   • {f} -> [{', '.join(skills)}]")
-    print(f"\n✅ Total Unioned Skill Files: {len(union_skills)}")
+                reviews.append(str(r))
+        print(f"   • {f} -> [{', '.join(reviews)}]")
+    print(f"\n✅ Total Unioned CODE_REVIEW.md Files: {len(union_reviews)}")
     print(f"✅ Context Payload File Written To: {out_path.relative_to(repo_root)}")
 
     return 0

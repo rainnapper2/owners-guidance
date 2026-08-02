@@ -1,4 +1,4 @@
-"""Unit tests for the directory skill review engine."""
+"""Unit tests for the directory CODE_REVIEW.md review engine."""
 
 import importlib.util
 import sys
@@ -11,8 +11,8 @@ script_dir = Path(__file__).resolve().parent.parent.parent / "skills" / "code-re
 sys.path.insert(0, str(script_dir))
 
 from review_agent import (
-    find_skill_files_in_dir,
-    resolve_skills_for_file,
+    find_review_files_in_dir,
+    resolve_reviews_for_file,
     build_review_context,
 )
 
@@ -25,12 +25,12 @@ class TestSkillReviewer(unittest.TestCase):
         # Create mock directory structure:
         # root/
         #   python/
-        #     SKILL.md
+        #     CODE_REVIEW.md
         #     api/
-        #       SKILL.md
+        #       CODE_REVIEW.md
         #       server.py
         #     cli/
-        #       SKILL.md
+        #       CODE_REVIEW.md
         #       client.py
         self.py_dir = self.root / "python"
         self.api_dir = self.py_dir / "api"
@@ -39,14 +39,14 @@ class TestSkillReviewer(unittest.TestCase):
         self.api_dir.mkdir(parents=True)
         self.cli_dir.mkdir(parents=True)
 
-        self.py_skill = self.py_dir / "SKILL.md"
-        self.py_skill.write_text("General Python guidelines", encoding="utf-8")
+        self.py_review = self.py_dir / "CODE_REVIEW.md"
+        self.py_review.write_text("General Python guidelines", encoding="utf-8")
 
-        self.api_skill = self.api_dir / "SKILL.md"
-        self.api_skill.write_text("API specific guidelines", encoding="utf-8")
+        self.api_review = self.api_dir / "CODE_REVIEW.md"
+        self.api_review.write_text("API specific guidelines", encoding="utf-8")
 
-        self.cli_skill = self.cli_dir / "SKILL.md"
-        self.cli_skill.write_text("CLI specific guidelines", encoding="utf-8")
+        self.cli_review = self.cli_dir / "CODE_REVIEW.md"
+        self.cli_review.write_text("CLI specific guidelines", encoding="utf-8")
 
         self.api_file = self.api_dir / "server.py"
         self.api_file.write_text("# server code", encoding="utf-8")
@@ -57,31 +57,31 @@ class TestSkillReviewer(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def test_find_skill_files_in_dir(self) -> None:
-        skills = find_skill_files_in_dir(self.py_dir)
-        self.assertEqual(skills, [self.py_skill])
+    def test_find_review_files_in_dir(self) -> None:
+        reviews = find_review_files_in_dir(self.py_dir)
+        self.assertEqual(reviews, [self.py_review])
 
-    def test_resolve_skills_for_api_file(self) -> None:
-        skills = resolve_skills_for_file(self.api_file, self.root)
-        # Should include python/SKILL.md AND python/api/SKILL.md in order
-        self.assertEqual(skills, [self.py_skill, self.api_skill])
+    def test_resolve_reviews_for_api_file(self) -> None:
+        reviews = resolve_reviews_for_file(self.api_file, self.root)
+        # Should include python/CODE_REVIEW.md AND python/api/CODE_REVIEW.md in order
+        self.assertEqual(reviews, [self.py_review, self.api_review])
 
-    def test_resolve_skills_for_cli_file(self) -> None:
-        skills = resolve_skills_for_file(self.cli_file, self.root)
-        # Should include python/SKILL.md AND python/cli/SKILL.md
-        self.assertEqual(skills, [self.py_skill, self.cli_skill])
+    def test_resolve_reviews_for_cli_file(self) -> None:
+        reviews = resolve_reviews_for_file(self.cli_file, self.root)
+        # Should include python/CODE_REVIEW.md AND python/cli/CODE_REVIEW.md
+        self.assertEqual(reviews, [self.py_review, self.cli_review])
 
     def test_build_review_context_union(self) -> None:
         changed_files = ["python/api/server.py", "python/cli/client.py"]
-        context, file_to_skills, union_skills = build_review_context(changed_files, "mock diff", self.root)
+        context, file_to_reviews, union_reviews = build_review_context(changed_files, "mock diff", self.root)
 
-        # file_to_skills mapping
-        self.assertEqual(file_to_skills["python/api/server.py"], [self.py_skill, self.api_skill])
-        self.assertEqual(file_to_skills["python/cli/client.py"], [self.py_skill, self.cli_skill])
+        # file_to_reviews mapping
+        self.assertEqual(file_to_reviews["python/api/server.py"], [self.py_review, self.api_review])
+        self.assertEqual(file_to_reviews["python/cli/client.py"], [self.py_review, self.cli_review])
 
-        # Union should contain all 3 unique skills without duplicates
-        self.assertEqual(len(union_skills), 3)
-        self.assertEqual(union_skills, [self.py_skill, self.api_skill, self.cli_skill])
+        # Union should contain all 3 unique reviews without duplicates
+        self.assertEqual(len(union_reviews), 3)
+        self.assertEqual(union_reviews, [self.py_review, self.api_review, self.cli_review])
 
         self.assertIn("DETERMINISTIC CODE REVIEW CONTEXT PAYLOAD", context)
         self.assertIn("General Python guidelines", context)
