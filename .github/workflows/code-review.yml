@@ -26,6 +26,8 @@ jobs:
       - name: Extract Directory Skills & Generate Guidance
         run: |
           python .github/scripts/skill_reviewer.py \
+            --base-sha ${{ github.event.pull_request.base.sha }} \
+            --head-sha ${{ github.event.pull_request.head.sha }} \
             --base ${{ github.base_ref || 'main' }} \
             --output review_guidance.md
 

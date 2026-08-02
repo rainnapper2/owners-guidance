@@ -60,9 +60,25 @@ def resolve_skills_for_file(filepath: str | Path, repo_root: Path) -> list[Path]
     return skill_files
 
 
-def get_changed_files_from_git(base_ref: str = "main", repo_root: Path | None = None) -> list[str]:
-    """Get list of changed files in git relative to base ref."""
+def get_changed_files_from_git(
+    base_ref: str = "main",
+    base_sha: str | None = None,
+    head_sha: str | None = None,
+    repo_root: Path | None = None
+) -> list[str]:
+    """Get list of changed files in git relative to base ref or SHAs."""
     cwd = repo_root or Path.cwd()
+
+    if base_sha and head_sha:
+        cmd = ["git", "diff", "--name-only", base_sha, head_sha]
+        try:
+            res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=True)
+            files = [f.strip() for f in res.stdout.splitlines() if f.strip()]
+            if files:
+                return files
+        except subprocess.CalledProcessError:
+            pass
+
     # Try various ref specs to handle both local and CI PR checkouts
     ref_specs = [f"origin/{base_ref}...HEAD", f"{base_ref}...HEAD", "HEAD~1...HEAD", "HEAD"]
     for ref_spec in ref_specs:
@@ -163,6 +179,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Resolve & Union Directory Skills for GitHub Code Review")
     parser.add_argument("--files", nargs="*", help="List of changed file paths")
     parser.add_argument("--base", default="main", help="Git base branch ref for diff comparison")
+    parser.add_argument("--base-sha", help="Git base commit SHA for diff comparison")
+    parser.add_argument("--head-sha", help="Git head commit SHA for diff comparison")
     parser.add_argument("--root", default=".", help="Repository root path")
     parser.add_argument("--output", help="Path to write output markdown report")
     args = parser.parse_args()
@@ -172,7 +190,12 @@ def main() -> int:
     if args.files:
         changed_files = args.files
     else:
-        changed_files = get_changed_files_from_git(base_ref=args.base, repo_root=repo_root)
+        changed_files = get_changed_files_from_git(
+            base_ref=args.base,
+            base_sha=args.base_sha,
+            head_sha=args.head_sha,
+            repo_root=repo_root
+        )
 
     report = generate_markdown_report(changed_files, repo_root)
 
