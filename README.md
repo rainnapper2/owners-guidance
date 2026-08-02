@@ -8,10 +8,13 @@ A lightweight Python monorepo showcasing **Directory-Based Code Review Skills** 
 .
 ├── .github/
 │   ├── scripts/
+│   │   ├── ai_reviewer.py         # AI Code Review Agent logic
 │   │   └── skill_reviewer.py      # Resolves parent directory skills and unions them for PR review
 │   └── workflows/
 │       ├── ci.yml                  # Continuous Integration test runner
 │       └── code-review.yml         # PR Code Review workflow using directory skills
+├── scripts/
+│   └── run_code_review_agent.py   # Harness-agnostic local review payload generator
 ├── python/
 │   ├── SKILL.md                    # Core Python standards (Type hints, PEP8, testing)
 │   ├── api/
@@ -30,11 +33,12 @@ A lightweight Python monorepo showcasing **Directory-Based Code Review Skills** 
 
 ## 🎯 How Directory-Based Code Review Skills Work
 
-When a Pull Request is opened or updated, `.github/scripts/skill_reviewer.py` evaluates all changed files:
+When a Pull Request is opened or code is modified, the review engine (`scripts/run_code_review_agent.py` / `skill_reviewer.py`) evaluates all changed files:
 
 1. **Hierarchy Resolution**: For every touched file, it walks up the directory path from the file's directory to the repository root, gathering all applicable `SKILL.md` files along the path.
-2. **Multi-Directory Union**: If a PR touches files across multiple directories (e.g. `python/api/server.py` and `python/cli/client.py`), the reviewer engine unions the skills from all affected directories and parent paths without duplication.
-3. **Automated Review Guidance**: Generates a unified Markdown review guide attached to the PR summary and PR comments.
+2. **Multi-Directory Union**: If a change touches files across multiple directories (e.g. `python/api/server.py` and `python/cli/client.py`), the reviewer engine unions the skills from all affected directories and parent paths without duplication.
+3. **Deterministic Context Payload**: Generates a self-contained `.review_context.tmp.md` file containing the union of skills, file mappings, git diff, and review instructions.
+4. **Harness-Agnostic Agent Execution**: The payload file is fed into any AI Code Reviewer Agent (Antigravity subagents, LLM API, Claude Code, Cursor, Aider, GitHub Actions) to produce a strict compliance review.
 
 ### Skill Resolution Matrix
 
@@ -43,6 +47,65 @@ When a Pull Request is opened or updated, `.github/scripts/skill_reviewer.py` ev
 | `python/api/server.py` | `python/SKILL.md` + `python/api/SKILL.md` |
 | `python/cli/client.py` | `python/SKILL.md` + `python/cli/SKILL.md` |
 | `python/api/server.py` **AND** `python/cli/client.py` | `python/SKILL.md` + `python/api/SKILL.md` + `python/cli/SKILL.md` |
+
+---
+
+## 🤖 Local Agent Execution & Example Review Output
+
+### 1. Stage a change & generate review context payload
+```bash
+# Stage changes
+git add python/api/server.py
+
+# Generate deterministic review payload
+python3 scripts/run_code_review_agent.py
+```
+
+**Terminal Output:**
+```text
+✅ Generated deterministic review context for 1 files:
+   • python/api/server.py -> [python/SKILL.md, python/api/SKILL.md]
+
+✅ Total Unioned Skill Files: 2
+✅ Context Payload File Written To: .review_context.tmp.md
+```
+
+### 2. Example AI Code Reviewer Report Output
+
+> # Code Review Report
+> **Overall Verdict**: **`REVISED_NEEDED`**
+> 
+> ---
+> 
+> ## 🚨 Line-by-Line Findings
+> 
+> | File | Line(s) | Severity | Skill Source | Description |
+> | --- | --- | --- | --- | --- |
+> | `python/api/server.py` | 16 | **High** | `python/SKILL.md` | Function signature `def format_item_response(item):` missing explicit type annotations for parameter `item` and return type. |
+> | `python/api/server.py` | 15–16 | **Medium** | `python/SKILL.md` | `format_item_response` uses an inline comment instead of a formal function docstring explaining purpose and return value. |
+> | `python/api/test_api.py` | N/A | **High** | `python/SKILL.md` | Missing unit tests for the newly introduced `format_item_response` function. |
+> | `python/api/server.py` | 17 | **Low** | Code Quality | Residual debug `print(f"DEBUG...")` statement pollutes standard output. |
+> 
+> ---
+> 
+> ## 🛠️ Suggested Code Changes
+> 
+> ```diff
+> -# Helper to format item responses for API consumers
+> -def format_item_response(item):
+> -    print(f"DEBUG: Formatting response for item {item}")
+> -    return {"data": item, "version": "v1"}
+> +def format_item_response(item: dict) -> dict:
+> +    """Format item dictionary response payload for API consumers.
+> +
+> +    Args:
+> +        item: Dictionary containing item attributes.
+> +
+> +    Returns:
+> +        Formatted dictionary with payload data and version metadata.
+> +    """
+> +    return {"data": item, "version": "v1"}
+> ```
 
 ---
 
@@ -64,12 +127,6 @@ python3 python/cli/client.py get --id 1
 ```bash
 python3 -m unittest discover -s python -p "test_*.py"
 python3 -m unittest discover -s tests -p "test_*.py"
-```
-
-### Testing the Skill Reviewer Locally
-```bash
-# Simulating a PR touching both API and CLI files
-python3 .github/scripts/skill_reviewer.py --files python/api/server.py python/cli/client.py
 ```
 
 ---
